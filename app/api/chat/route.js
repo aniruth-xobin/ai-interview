@@ -172,9 +172,7 @@ Guidelines:
       messages.push({ role: 'user', content: "(The candidate has paused drawing on the whiteboard. Evaluate the current architecture based on the [Whiteboard State]. If there are labeled components, proactively ask a brief, conversational follow-up question about their design choice (e.g., 'I see you added a database, why did you choose that type?'). If the canvas is completely empty or only contains an empty box with no text, reply with EXACTLY '...' to remain silent.)" })
     }
 
-    let completion
-    let reply = ''
-    let lastError = null
+    let lastError = null;
 
     // Try up to keys.length times to find a working key
     for (let attempts = 0; attempts < keys.length; attempts++) {
@@ -183,15 +181,57 @@ Guidelines:
       
       try {
         const groq = new Groq({ apiKey: activeKey })
-        completion = await groq.chat.completions.create({
+        const stream = await groq.chat.completions.create({
           messages,
           model: 'llama-3.3-70b-versatile',
           temperature: 0.5,
-          max_tokens: 512
+          max_tokens: 512,
+          stream: true
         })
-        reply = completion.choices[0]?.message?.content || ''
-        lastError = null
-        break // Success, exit retry loop
+
+        const encoder = new TextEncoder()
+        const readableStream = new ReadableStream({
+          async start(controller) {
+            let buffer = ''
+            let isFirstChunk = true
+
+            try {
+              for await (const chunk of stream) {
+                const text = chunk.choices[0]?.delta?.content || ''
+                if (text) {
+                  buffer += text
+
+                  // Handle the specific 'silent' evaluation case where it just replies "..."
+                  if (isFirstChunk && buffer.length >= 3) {
+                    if (buffer.trim() === '...') {
+                      controller.close()
+                      return
+                    }
+                    isFirstChunk = false
+                  }
+                  
+                  // If we've passed the initial silent check, stream normally
+                  if (!isFirstChunk || buffer.length > 3 || (buffer.length > 0 && !'...'.startsWith(buffer))) {
+                     controller.enqueue(encoder.encode(text))
+                  }
+                }
+              }
+              
+              // Edge case: if the total output was literally just "." or ".."
+              if (isFirstChunk && buffer.trim() !== '...') {
+                 controller.enqueue(encoder.encode(buffer))
+              }
+              
+              controller.close()
+            } catch (err) {
+              controller.error(err)
+            }
+          }
+        })
+
+        return new Response(readableStream, {
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        })
       } catch (err) {
         console.warn(`Groq key index ${(currentKeyIndex === 0 ? keys.length : currentKeyIndex) - 1} failed:`, err.message)
         lastError = err
@@ -201,13 +241,6 @@ Guidelines:
     if (lastError) {
       throw lastError // If all keys failed, throw the last error to be caught by the outer catch block
     }
-
-    // If the agent decides to stay quiet during a silent drawing update
-    if (reply.trim() === '...') {
-      return Response.json({ reply: null })
-    }
-
-    return Response.json({ reply })
     
   } catch (error) {
     console.error('Error with Groq API:', error)

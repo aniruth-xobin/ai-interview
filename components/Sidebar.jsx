@@ -38,7 +38,15 @@ export default function Sidebar({ transcript, isSpeaking, onUserMessage, onEndIn
               )}
             </div>
             <div className={`${styles.message} ${styles[msg.role]}`}>
-              <ReactMarkdown>{msg.text}</ReactMarkdown>
+              {msg.text === '...' ? (
+                <div className={styles.typingIndicator}>
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              ) : (
+                <ReactMarkdown>{msg.text}</ReactMarkdown>
+              )}
             </div>
           </div>
         ))}

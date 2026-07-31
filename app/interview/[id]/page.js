@@ -31,6 +31,15 @@ export default function InterviewSessionPage({ params }) {
   const [timeLeft, setTimeLeft] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  // TTS State
+  const [selectedVoice, setSelectedVoice] = useState('en_US-lessac-medium')
+  const [ttsStatus, setTtsStatus] = useState('')
+  const [ttsReady, setTtsReady] = useState(false)
+  const workerRef = useRef(null)
+  const audioContextRef = useRef(null)
+  const audioQueueRef = useRef([])
+  const isPlayingRef = useRef(false)
+
   useEffect(() => {
     const fetchLink = async () => {
       const { data } = await supabase
@@ -38,7 +47,7 @@ export default function InterviewSessionPage({ params }) {
         .select('*')
         .eq('id', id)
         .single()
-      
+
       if (data) {
         setLinkData(data)
         setInterviewContext({
@@ -53,15 +62,112 @@ export default function InterviewSessionPage({ params }) {
       setLoading(false)
     }
     fetchLink()
-    
-    // Preload voices to prevent the male/female voice switching bug
+
+    // Preload basic voices for fallback
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.getVoices()
       window.speechSynthesis.onvoiceschanged = () => {
         window.speechSynthesis.getVoices()
       }
     }
+
+    // Init audio context on interaction
+    const initAudio = () => {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      window.removeEventListener('click', initAudio);
+    };
+    window.addEventListener('click', initAudio);
+
+    // Init Piper TTS worker
+    try {
+      workerRef.current = new Worker('/piper.worker.js', { type: 'module' });
+      workerRef.current.onmessage = (e) => {
+        const { type, status, message, error, audioData, text } = e.data;
+        if (type === 'STATUS') setTtsStatus(message);
+        if (type === 'READY') {
+          setTtsReady(true);
+          setTtsStatus('');
+        }
+        if (type === 'ERROR') {
+          console.error('TTS Worker Error:', error);
+          setTtsStatus('Failed to load local voice. Falling back to basic voice.');
+        }
+        if (type === 'AUDIO_CHUNK') {
+          scheduleAudio(audioData, text);
+        }
+      };
+    } catch (err) {
+      console.error('Failed to init worker', err);
+      setTtsStatus('Failed to init worker. Fallback enabled.');
+    }
+
+    return () => {
+      if (workerRef.current) workerRef.current.terminate();
+    }
   }, [id])
+
+  // Initialize or update the TTS worker voice whenever it changes
+  useEffect(() => {
+    if (workerRef.current) {
+      setTtsReady(false);
+      workerRef.current.postMessage({ type: 'INIT', voice_id: selectedVoice });
+    }
+  }, [selectedVoice])
+
+  const nextStartTimeRef = useRef(0)
+
+  const scheduleAudio = async (audioData, text) => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
+    }
+
+    try {
+      const audioBuffer = await audioContextRef.current.decodeAudioData(audioData);
+
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContextRef.current.destination);
+
+      // Schedule seamlessly
+      let startTime = Math.max(nextStartTimeRef.current, audioContextRef.current.currentTime + 0.05);
+      source.start(startTime);
+      nextStartTimeRef.current = startTime + audioBuffer.duration;
+
+      // Sync the text appearing with the audio starting
+      const delayMs = Math.max(0, (startTime - audioContextRef.current.currentTime) * 1000);
+      setTimeout(() => {
+        setIsSpeaking(true);
+        if (text) {
+          setTranscript(prev => {
+            const newT = [...prev];
+            if (newT.length > 0) {
+              const lastMsg = { ...newT[newT.length - 1] };
+              if (lastMsg.role === 'agent') {
+                if (lastMsg.text === '...') lastMsg.text = text.trim();
+                else lastMsg.text = (lastMsg.text + " " + text).trim();
+                newT[newT.length - 1] = lastMsg;
+              }
+            }
+            return newT;
+          });
+        }
+      }, delayMs);
+
+      source.onended = () => {
+        // If we've reached the end of the scheduled audio, turn off the speaking indicator
+        if (audioContextRef.current.currentTime >= nextStartTimeRef.current - 0.1) {
+          setIsSpeaking(false);
+        }
+      };
+    } catch (err) {
+      console.error('Failed to decode audio data:', err);
+    }
+  }
 
   useEffect(() => {
     if (started && timeLeft > 0) {
@@ -106,7 +212,7 @@ export default function InterviewSessionPage({ params }) {
     setSessionId(sessionData.id)
     setTimeLeft(linkData.durationMin * 60)
     setStarted(true)
-    
+
     // Send an initial system prompt to trigger the welcome message
     evaluateState([], "Hello, I am ready to begin the interview.")
   }
@@ -136,7 +242,7 @@ export default function InterviewSessionPage({ params }) {
   const handleUserMessage = async (text) => {
     if (!text || text.trim() === '') return
     if (isProcessingRef.current) return
-    
+
     setTranscript(prev => [...prev, { role: 'user', text }])
     await evaluateState(canvasState, text)
   }
@@ -160,35 +266,67 @@ export default function InterviewSessionPage({ params }) {
         })
       })
 
-      const data = await response.json()
-
-      if (data.reply) {
-        setTranscript(prev => [...prev, { role: 'agent', text: data.reply }])
-
-        const utterance = new SpeechSynthesisUtterance(data.reply)
-        
-        // Find a soft female voice
-        const voices = window.speechSynthesis.getVoices()
-        const femaleVoice = voices.find(v => 
-          v.name.includes('Female') || 
-          v.name.includes('Samantha') || 
-          v.name.includes('Victoria') || 
-          v.name.includes('Zira') ||
-          v.name.includes('Google UK English Female') ||
-          v.name.includes('Karen') ||
-          v.name.includes('Moira')
-        )
-        if (femaleVoice) {
-          utterance.voice = femaleVoice
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await response.json()
+        if (data.reply) {
+          setTranscript(prev => [...prev, { role: 'agent', text: data.reply }]);
         }
-        
-        utterance.pitch = 1.1
-        utterance.rate = 0.95
-
-        utterance.onstart = () => setIsSpeaking(true)
-        utterance.onend = () => setIsSpeaking(false)
-        window.speechSynthesis.speak(utterance)
+        return;
       }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let fullText = '';
+      let currentSentence = '';
+      
+      // Add empty agent message (or '...' if using TTS sync)
+      const useTtsSync = ttsReady && workerRef.current;
+      setTranscript(prev => [...prev, { role: 'agent', text: useTtsSync ? '...' : '' }]);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        fullText += chunk;
+        currentSentence += chunk;
+        
+        // Update UI dynamically ONLY if we are not syncing with TTS
+        if (!useTtsSync) {
+          setTranscript(prev => {
+            const newT = [...prev];
+            if (newT.length > 0) {
+              const lastMsg = { ...newT[newT.length - 1] };
+              lastMsg.text = fullText;
+              newT[newT.length - 1] = lastMsg;
+            }
+            return newT;
+          });
+        }
+
+        // Sentence boundary detection for Piper TTS streaming
+        const match = currentSentence.match(/([.!?])\s+/);
+        if (match) {
+           const parts = currentSentence.split(/([.!?])\s+/);
+           // parts format: ["Hello", "!", "World", ".", ""]
+           while (parts.length > 2) {
+              const textPart = parts.shift();
+              const punctPart = parts.shift();
+              const sentence = (textPart + punctPart).trim();
+              if (sentence && ttsReady && workerRef.current) {
+                 workerRef.current.postMessage({ type: 'GENERATE', text: sentence, voice_id: selectedVoice });
+              }
+           }
+           currentSentence = parts[0] || '';
+        }
+      }
+      
+      // Flush the remaining text chunk at the end
+      if (currentSentence.trim() && ttsReady && workerRef.current) {
+         workerRef.current.postMessage({ type: 'GENERATE', text: currentSentence.trim(), voice_id: selectedVoice });
+      }
+
     } catch (error) {
       console.error("Evaluation failed", error)
     } finally {
@@ -219,7 +357,7 @@ export default function InterviewSessionPage({ params }) {
       const data = await response.json()
       if (response.ok) {
         setReportData(data)
-        
+
         // Update Supabase session
         if (sessionId) {
           const { error: updateError } = await supabase
@@ -233,7 +371,7 @@ export default function InterviewSessionPage({ params }) {
               completedAt: new Date().toISOString()
             })
             .eq('id', sessionId)
-            
+
           if (updateError) {
             console.error("Failed to update session status:", updateError)
           }
@@ -296,7 +434,7 @@ export default function InterviewSessionPage({ params }) {
             </div>
             <h2 style={{ margin: '0 0 8px 0', fontSize: '24px', fontWeight: '600' }}>{linkData.title}</h2>
             <p style={{ margin: '0 0 24px 0', color: '#6b7280', fontSize: '14px', textAlign: 'center' }}>Please enter your details to begin the interview.</p>
-            
+
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>Full Name</label>
@@ -338,9 +476,34 @@ export default function InterviewSessionPage({ params }) {
                   onBlur={e => e.target.style.borderColor = '#d1d5db'}
                 />
               </div>
+
+              <div style={{ display: 'none' }}>
+                <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>Interviewer Voice</label>
+                <select
+                  value={selectedVoice}
+                  onChange={(e) => setSelectedVoice(e.target.value)}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #d1d5db',
+                    outline: 'none',
+                    fontSize: '14px',
+                    width: '100%',
+                    background: '#fff'
+                  }}
+                >
+                  <option value="en_US-lessac-medium">Lessac (US Female)</option>
+                </select>
+              </div>
+
+              {ttsStatus && (
+                <div style={{ fontSize: '12px', color: '#059669', background: '#d1fae5', padding: '8px', borderRadius: '4px', textAlign: 'center' }}>
+                  {ttsStatus}
+                </div>
+              )}
             </div>
 
-            <button 
+            <button
               onClick={handleStart}
               style={{
                 width: '100%',
@@ -366,7 +529,7 @@ export default function InterviewSessionPage({ params }) {
       <div className={styles.logoContainer}>
         <img src="https://xobin.com/wp-content/uploads/2026/04/logo-CQAmVy86.png" alt="Xobin Logo" />
       </div>
-      
+
       {started && timeLeft !== null && (
         <div style={{ position: 'absolute', top: 16, right: 440, zIndex: 10, background: 'var(--glass-bg)', padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', fontWeight: 'bold', color: timeLeft < 60 ? '#ff4d4d' : 'var(--text-main)' }}>
           Time Remaining: {formatTime(timeLeft)}
@@ -408,14 +571,14 @@ export default function InterviewSessionPage({ params }) {
             <div className={styles.reportDecision}>
               Decision: <span className={reportData.decision.toLowerCase() === 'hire' ? styles.decisionHire : styles.decisionNoHire}>{reportData.decision}</span>
             </div>
-            
+
             <div className={styles.reportSection}>
               <h3>Strengths</h3>
               <ul>
                 {reportData.strengths?.map((s, i) => <li key={i}>{s}</li>)}
               </ul>
             </div>
-            
+
             <div className={styles.reportSection}>
               <h3>Areas for Improvement</h3>
               <ul>
@@ -429,12 +592,12 @@ export default function InterviewSessionPage({ params }) {
                 <p style={{ fontWeight: '500', color: '#111827' }}>{reportData.recommendation}</p>
               </div>
             )}
-            
+
             <div className={styles.reportSection}>
               <h3>Detailed Feedback</h3>
               <p>{reportData.feedback}</p>
             </div>
-            
+
             <button className={styles.closeReportBtn} onClick={() => router.push('/')}>
               Return to Home
             </button>
