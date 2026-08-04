@@ -327,6 +327,15 @@ export default function InterviewSessionPage({ params }) {
          workerRef.current.postMessage({ type: 'GENERATE', text: currentSentence.trim(), voice_id: selectedVoice });
       }
 
+      // If the agent chose to remain silent (e.g. evaluating the canvas without comment), remove the placeholder
+      if (fullText.trim() === '') {
+        setTranscript(prev => {
+          const newT = [...prev];
+          newT.pop();
+          return newT;
+        });
+      }
+
     } catch (error) {
       console.error("Evaluation failed", error)
     } finally {

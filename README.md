@@ -55,4 +55,4 @@ npm run dev
 ## 🧠 Architecture Highlights
 - **Canvas Stripping**: The frontend strips the heavy Excalidraw payload into a lightweight JSON array before sending it over the network.
 - **SVG Reconstruction**: The Admin Panel uses a headless `exportToSvg` utility to rebuild the candidate's drawing from raw database elements without loading the full editor.
-- **Web Worker Interception**: A custom browser patch intercepts Turbopack Web Worker requests to prevent Excalidraw CORS crashes in Next.js dev mode.
+- **Web Worker Interception**: A custom browser patch intercepts Turbopack Web Worker requests to prevent Excalidraw CORS crashes in Next.js developer  mode.
