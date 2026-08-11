@@ -1,4 +1,4 @@
-import * as tts from 'https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/+esm';
+import * as tts from '@diffusionstudio/vits-web';
 
 let isReady = false;
 let currentVoice = null;
@@ -64,5 +64,11 @@ self.addEventListener('message', async (e) => {
     
     generationQueue.push(e.data);
     processQueue();
+  } else if (type === 'FLUSH_CACHE') {
+    if (tts.flush) {
+      tts.flush().catch(console.error);
+    } else {
+      navigator.storage.getDirectory().then(dir => dir.getDirectoryHandle('piper').then(p => p.remove({recursive: true}))).catch(console.error);
+    }
   }
 });

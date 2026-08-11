@@ -7,7 +7,7 @@ let currentKeyIndex = 0;
 
 export async function POST(req) {
   try {
-    const { shapes, bindings, userText, transcript, interviewContext } = await req.json()
+    const { shapes, bindings, userText, transcript, interviewContext, language } = await req.json()
     // Retrieve all configured API keys
     const keys = [
       process.env.GROQ_API_KEY_1,
@@ -154,7 +154,8 @@ Guidelines:
 - **Proactive Evaluation**: When the candidate adds ANY new labeled components to the diagram, act like a real interviewer! Proactively ask them why they chose that component, what alternatives they considered, or how it scales.
 - **Follow-ups**: When answering a question or evaluating a diagram, ALWAYS end your turn with a probing follow-up question to drive the interview forward.
 - **Context Awareness**: ALWAYS prioritize the CURRENT [Whiteboard State]. If they are drawing, evaluate what is drawn.
-- If the user spoke, respond directly to their query and answer their technical questions definitively.`
+- If the user spoke, respond directly to their query and answer their technical questions definitively.
+- **CRITICAL LANGUAGE REQUIREMENT**: You MUST respond to the candidate exclusively in the following language: ${language || 'English'}. Translate your entire response, including technical terms where appropriate, into this language.`
 
     const messages = [
       { role: 'system', content: systemPrompt },

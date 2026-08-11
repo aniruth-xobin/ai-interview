@@ -82,7 +82,7 @@ export default function InterviewSessionPage({ params }) {
 
     // Init Piper TTS worker
     try {
-      workerRef.current = new Worker('/piper.worker.js', { type: 'module' });
+      workerRef.current = new Worker(new URL('../../workers/piper.worker.js', import.meta.url), { type: 'module' });
       workerRef.current.onmessage = (e) => {
         const { type, status, message, error, audioData, text } = e.data;
         if (type === 'STATUS') setTtsStatus(message);
@@ -254,6 +254,17 @@ export default function InterviewSessionPage({ params }) {
       const payloadShapes = Array.isArray(state) ? state : (state.shapes || [])
       const payloadBindings = Array.isArray(state) ? [] : (state.bindings || [])
 
+      // Map voice ID to language name for the LLM prompt
+      const getLanguageName = (id) => {
+        if (id.includes('hi_IN')) return 'Hindi';
+        if (id.includes('te_IN')) return 'Telugu';
+        if (id.includes('ml_IN')) return 'Malayalam';
+        if (id.includes('fr_FR')) return 'French';
+        if (id.includes('pl_PL')) return 'Polish';
+        if (id.includes('zh_CN')) return 'Chinese';
+        return 'English';
+      };
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -262,7 +273,8 @@ export default function InterviewSessionPage({ params }) {
           bindings: payloadBindings,
           userText,
           transcript,
-          interviewContext
+          interviewContext,
+          language: getLanguageName(selectedVoice)
         })
       })
 
@@ -305,10 +317,10 @@ export default function InterviewSessionPage({ params }) {
           });
         }
 
-        // Sentence boundary detection for Piper TTS streaming
-        const match = currentSentence.match(/([.!?])\s+/);
+        // Sentence boundary detection for Piper TTS streaming (Supports English, CJK, and Indic punctuation)
+        const match = currentSentence.match(/([.!?]\s+|[。！？।॥]\s*)/);
         if (match) {
-           const parts = currentSentence.split(/([.!?])\s+/);
+           const parts = currentSentence.split(/([.!?]\s+|[。！？।॥]\s*)/);
            // parts format: ["Hello", "!", "World", ".", ""]
            while (parts.length > 2) {
               const textPart = parts.shift();
@@ -486,22 +498,26 @@ export default function InterviewSessionPage({ params }) {
                 />
               </div>
 
-              <div style={{ display: 'none' }}>
+              <div style={{ marginBottom: '16px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>Interviewer Voice</label>
-                <select
-                  value={selectedVoice}
+                <select 
+                  value={selectedVoice} 
                   onChange={(e) => setSelectedVoice(e.target.value)}
                   style={{
-                    padding: '10px 12px',
-                    borderRadius: '6px',
+                    padding: '8px',
+                    borderRadius: '4px',
                     border: '1px solid #d1d5db',
-                    outline: 'none',
-                    fontSize: '14px',
                     width: '100%',
                     background: '#fff'
                   }}
                 >
-                  <option value="en_US-lessac-medium">Lessac (US Female)</option>
+                  <option value="en_US-lessac-medium">English (Lessac)</option>
+                  <option value="fr_FR-siwis-medium">French (Siwis)</option>
+                  <option value="pl_PL-gosia-medium">Polish (Gosia)</option>
+                  <option value="zh_CN-huayan-medium">Chinese (Huayan)</option>
+                  <option value="hi_IN-priyamvada-medium">Hindi (Priyamvada)</option>
+                  <option value="ml_IN-meera-medium">Malayalam (Meera)</option>
+                  <option value="te_IN-padmavathi-medium">Telugu (Padmavathi)</option>
                 </select>
               </div>
 
