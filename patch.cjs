@@ -11,8 +11,8 @@ if (content.includes(badUrl)) {
 
 // 2. Inject Indian female languages into the dictionary
 const dictStart = "c = {";
-const injectedDict = "c = { 'hi_IN-priyamvada-medium': 'hi/hi_IN/priyamvada/medium/hi_IN-priyamvada-medium.onnx', 'ml_IN-meera-medium': 'ml/ml_IN/meera/medium/ml_IN-meera-medium.onnx', 'te_IN-padmavathi-medium': 'te/te_IN/padmavathi/medium/te_IN-padmavathi-medium.onnx',";
-if (content.includes(dictStart) && !content.includes('hi_IN-priyamvada-medium')) {
+const injectedDict = "c = { 'ta_IN-rasa-medium': 'https://huggingface.co/tinisoft/piper-ta_IN-rasa_female-medium/resolve/main/ta_IN-rasa_female-medium.onnx', 'hi_IN-priyamvada-medium': 'hi/hi_IN/priyamvada/medium/hi_IN-priyamvada-medium.onnx', 'ml_IN-meera-medium': 'ml/ml_IN/meera/medium/ml_IN-meera-medium.onnx', 'te_IN-padmavathi-medium': 'te/te_IN/padmavathi/medium/te_IN-padmavathi-medium.onnx',";
+if (content.includes(dictStart) && !content.includes('ta_IN-rasa-medium')) {
   content = content.replace(dictStart, injectedDict);
 }
 const badMapString = "Object.keys(i.speaker_id_map).length";
@@ -22,6 +22,12 @@ if (content.includes(badMapString)) {
 } else {
   console.log("Speaker ID map already patched or not found.");
 }
+
+// 3. Patch URL construction to support absolute HTTP URLs
+content = content.replace(/`\$\{u\}\/\$\{n\}\.json`/g, "(n.startsWith('http') ? `${n}.json` : `${u}/${n}.json`)");
+content = content.replace(/`\$\{u\}\/\$\{n\}`/g, "(n.startsWith('http') ? n : `${u}/${n}`)");
+content = content.replace(/`\$\{u\}\/\$\{m\}\.json`/g, "(m.startsWith('http') ? `${m}.json` : `${u}/${m}.json`)");
+content = content.replace(/`\$\{u\}\/\$\{m\}`/g, "(m.startsWith('http') ? m : `${u}/${m}`)");
 
 fs.writeFileSync(file, content);
 console.log("Patched vits-web successfully!");

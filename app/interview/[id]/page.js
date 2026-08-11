@@ -258,6 +258,7 @@ export default function InterviewSessionPage({ params }) {
       const getLanguageName = (id) => {
         if (id.includes('hi_IN')) return 'Hindi';
         if (id.includes('te_IN')) return 'Telugu';
+        if (id.includes('ta_IN')) return 'Tamil';
         if (id.includes('ml_IN')) return 'Malayalam';
         if (id.includes('fr_FR')) return 'French';
         if (id.includes('pl_PL')) return 'Polish';
@@ -318,9 +319,10 @@ export default function InterviewSessionPage({ params }) {
         }
 
         // Sentence boundary detection for Piper TTS streaming (Supports English, CJK, and Indic punctuation)
-        const match = currentSentence.match(/([.!?]\s+|[。！？।॥]\s*)/);
+        // We use (\.(?!\d)|[!?。！？।॥])\s* to split on periods (unless followed by a digit like 3.14) and other punctuation, discarding trailing spaces.
+        const match = currentSentence.match(/(\.(?!\d)|[!?。！？।॥])\s*/);
         if (match) {
-           const parts = currentSentence.split(/([.!?]\s+|[。！？।॥]\s*)/);
+           const parts = currentSentence.split(/(\.(?!\d)|[!?。！？।॥])\s*/);
            // parts format: ["Hello", "!", "World", ".", ""]
            while (parts.length > 2) {
               const textPart = parts.shift();
@@ -518,6 +520,7 @@ export default function InterviewSessionPage({ params }) {
                   <option value="hi_IN-priyamvada-medium">Hindi (Priyamvada)</option>
                   <option value="ml_IN-meera-medium">Malayalam (Meera)</option>
                   <option value="te_IN-padmavathi-medium">Telugu (Padmavathi)</option>
+                  <option value="ta_IN-rasa-medium">Tamil (Rasa)</option>
                 </select>
               </div>
 
