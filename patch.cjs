@@ -1,43 +1,93 @@
 const fs = require('fs');
 const file = 'node_modules/@diffusionstudio/vits-web/dist/vits-web.js';
+
+if (!fs.existsSync(file)) {
+  console.log('vits-web.js not found!');
+  process.exit(1);
+}
+
 let content = fs.readFileSync(file, 'utf8');
 
-// 1. Swap base URL
-const badUrl = "https://huggingface.co/diffusionstudio/piper-voices/resolve/main";
-const goodUrl = "https://huggingface.co/rhasspy/piper-voices/resolve/main";
-if (content.includes(badUrl)) {
-  content = content.replace(badUrl, goodUrl);
-}
+// Cache InferenceSession to dramatically speed up sequential TTS generation
+const createSessionStr = "y = await _.InferenceSession.create(await k.arrayBuffer())";
+const cachedSessionStr = "y = (globalThis._onnxSessionCache = globalThis._onnxSessionCache || {}, globalThis._onnxSessionCache[n] = globalThis._onnxSessionCache[n] || await _.InferenceSession.create(await k.arrayBuffer()))";
 
-// 2. Inject Indian female languages into the dictionary
-const dictStart = "c = {";
-const injectedDict = "c = { 'ta_IN-rasa-medium': 'https://huggingface.co/tinisoft/piper-ta_IN-rasa_female-medium/resolve/main/ta_IN-rasa_female-medium.onnx', 'hi_IN-priyamvada-medium': 'hi/hi_IN/priyamvada/medium/hi_IN-priyamvada-medium.onnx', 'ml_IN-meera-medium': 'ml/ml_IN/meera/medium/ml_IN-meera-medium.onnx', 'te_IN-padmavathi-medium': 'te/te_IN/padmavathi/medium/te_IN-padmavathi-medium.onnx',";
-if (content.includes(dictStart) && !content.includes('ta_IN-rasa-medium')) {
-  content = content.replace(dictStart, injectedDict);
-}
-const badMapString = "Object.keys(i.speaker_id_map).length";
-const goodMapString = "(i.speaker_id_map ? Object.keys(i.speaker_id_map).length : 0)";
-if (content.includes(badMapString)) {
-  content = content.replace(badMapString, goodMapString);
+if (content.includes(createSessionStr)) {
+  content = content.replace(createSessionStr, cachedSessionStr);
+  fs.writeFileSync(file, content);
+  console.log('InferenceSession caching patched successfully!');
 } else {
-  console.log("Speaker ID map already patched or not found.");
+  console.log('Patch skipped: InferenceSession string not found. (Already patched?)');
 }
 
-// 3. Patch URL construction to support absolute HTTP URLs
-content = content.replace(/`\$\{u\}\/\$\{n\}\.json`/g, "(n.startsWith('http') ? `${n}.json` : `${u}/${n}.json`)");
-content = content.replace(/`\$\{u\}\/\$\{n\}`/g, "(n.startsWith('http') ? n : `${u}/${n}`)");
-content = content.replace(/`\$\{u\}\/\$\{m\}\.json`/g, "(m.startsWith('http') ? `${m}.json` : `${u}/${m}.json`)");
-content = content.replace(/`\$\{u\}\/\$\{m\}`/g, "(m.startsWith('http') ? m : `${u}/${m}`)");
-
-fs.writeFileSync(file, content);
-console.log("Patched vits-web successfully!");
-
-// Strip require("fs") and require("path") from the emscripten module so Next.js doesn't crash
-const emscriptenFile = 'node_modules/@diffusionstudio/vits-web/dist/piper-DeOu3H9E.js';
-if (fs.existsSync(emscriptenFile)) {
-  let emsContent = fs.readFileSync(emscriptenFile, 'utf8');
-  emsContent = emsContent.replace(/require\("fs"\)/g, '({ readFile: function(a,b){ b(new Error("No fs")); } })');
-  emsContent = emsContent.replace(/require\("path"\)/g, '({ dirname: function(){ return ""; }, join: function(){ return ""; } })');
-  fs.writeFileSync(emscriptenFile, emsContent);
-  console.log("Patched piper emscripten file successfully!");
+// Replace module specifier with local URL to allow native browser ESM loading
+if (content.includes('import("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.es6.min.js")')) {
+  // Replace the dynamic import
+  content = content.replace('import("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.es6.min.js")', 'import("/onnxruntime-web/esm/ort.min.js")');
+  fs.writeFileSync(file, content);
+  console.log('Bare module specifier patched to local URL successfully!');
+} else if (content.includes('import("onnxruntime-web")')) {
+  content = content.replace('import("onnxruntime-web")', 'import("/onnxruntime-web/esm/ort.min.js")');
+  fs.writeFileSync(file, content);
+  console.log('Bare module specifier patched to local URL successfully!');
 }
+
+// Replace the WASM CDN path with the local path to prevent COEP blocking
+const wasmCdnStr = 'https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.18.0/';
+if (content.includes(wasmCdnStr)) {
+  content = content.replace(wasmCdnStr, '/onnxruntime-web/');
+  fs.writeFileSync(file, content);
+  console.log('WASM CDN path patched to local URL successfully!');
+}
+
+// Also replace the bare import in piper-DeOu3H9E.js if it exists
+const piperFile = 'node_modules/@diffusionstudio/vits-web/dist/piper-DeOu3H9E.js';
+if (fs.existsSync(piperFile)) {
+  let pContent = fs.readFileSync(piperFile, 'utf8');
+  if (pContent.includes('require("fs")') || pContent.includes('String.fromCharCode')) {
+    pContent = pContent.replace(/require\("fs"\)/g, 'require(String.fromCharCode(102, 115))');
+    pContent = pContent.replace(/require\("path"\)/g, 'require(String.fromCharCode(112, 97, 116, 104))');
+    
+    // In case the import is compiled differently in this file
+    if (pContent.includes('import("onnxruntime-web")')) {
+      pContent = pContent.replace('import("onnxruntime-web")', 'import("/onnxruntime-web/esm/ort.min.js")');
+    }
+    
+    fs.writeFileSync(piperFile, pContent);
+    console.log('Patched piper-DeOu3H9E.js to bypass Next.js Turbopack analysis with String.fromCharCode.');
+  }
+}
+
+// Copy patched vits-web to public/ so it can be served statically without Turbopack interference
+const path = require('path');
+const publicVitsWebPath = path.join(__dirname, 'public', 'vits-web');
+if (!fs.existsSync(publicVitsWebPath)) {
+  fs.mkdirSync(publicVitsWebPath, { recursive: true });
+}
+
+// Copy onnxruntime-web to public/ as well
+const publicOnnxWebPath = path.join(__dirname, 'public', 'onnxruntime-web');
+if (!fs.existsSync(publicOnnxWebPath)) {
+  fs.mkdirSync(publicOnnxWebPath, { recursive: true });
+}
+
+function copyDirSync(src, dest) {
+  if (!fs.existsSync(src)) return;
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (let entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      if (!fs.existsSync(destPath)) fs.mkdirSync(destPath);
+      copyDirSync(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+copyDirSync(path.join(__dirname, 'node_modules', '@diffusionstudio', 'vits-web', 'dist'), publicVitsWebPath);
+console.log('Copied patched vits-web to public/vits-web for static serving.');
+
+copyDirSync(path.join(__dirname, 'node_modules', 'onnxruntime-web', 'dist'), publicOnnxWebPath);
+console.log('Copied onnxruntime-web to public/onnxruntime-web for static serving.');

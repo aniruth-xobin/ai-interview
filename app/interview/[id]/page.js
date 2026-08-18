@@ -82,9 +82,11 @@ export default function InterviewSessionPage({ params }) {
 
     // Init Piper TTS worker
     try {
-      workerRef.current = new Worker(new URL('../../workers/piper.worker.js', import.meta.url), { type: 'module' });
+      console.log('Main thread: Creating Worker...');
+      workerRef.current = new Worker('/piper.worker.js', { type: 'module' });
       workerRef.current.onmessage = (e) => {
         const { type, status, message, error, audioData, text } = e.data;
+        console.log('Main thread: Received message from worker:', type, message || error || '');
         if (type === 'STATUS') setTtsStatus(message);
         if (type === 'READY') {
           setTtsReady(true);
@@ -98,6 +100,7 @@ export default function InterviewSessionPage({ params }) {
           scheduleAudio(audioData, text);
         }
       };
+      console.log('Main thread: Worker created successfully');
     } catch (err) {
       console.error('Failed to init worker', err);
       setTtsStatus('Failed to init worker. Fallback enabled.');
@@ -110,8 +113,10 @@ export default function InterviewSessionPage({ params }) {
 
   // Initialize or update the TTS worker voice whenever it changes
   useEffect(() => {
+    console.log('Main thread: selectedVoice changed to', selectedVoice, 'Worker exists:', !!workerRef.current);
     if (workerRef.current) {
       setTtsReady(false);
+      console.log('Main thread: Sending INIT message to worker');
       workerRef.current.postMessage({ type: 'INIT', voice_id: selectedVoice });
     }
   }, [selectedVoice])
@@ -247,6 +252,14 @@ export default function InterviewSessionPage({ params }) {
     await evaluateState(canvasState, text)
   }
 
+  const cleanForTTS = (text) => {
+    return text
+      .replace(/[*#_`~>]/g, '')  // Remove markdown symbols
+      .replace(/\n/g, ' ')       // Replace newlines with spaces
+      .replace(/\s{2,}/g, ' ')   // Collapse multiple spaces
+      .trim();
+  }
+
   const evaluateState = async (state, userText) => {
     if (isProcessingRef.current || isReportGenerating || reportData) return
     isProcessingRef.current = true
@@ -328,8 +341,9 @@ export default function InterviewSessionPage({ params }) {
               const textPart = parts.shift();
               const punctPart = parts.shift();
               const sentence = (textPart + punctPart).trim();
-              if (sentence && ttsReady && workerRef.current) {
-                 workerRef.current.postMessage({ type: 'GENERATE', text: sentence, voice_id: selectedVoice });
+              const cleanedSentence = cleanForTTS(sentence);
+              if (cleanedSentence && ttsReady && workerRef.current) {
+                 workerRef.current.postMessage({ type: 'GENERATE', text: cleanedSentence, voice_id: selectedVoice });
               }
            }
            currentSentence = parts[0] || '';
@@ -338,7 +352,10 @@ export default function InterviewSessionPage({ params }) {
       
       // Flush the remaining text chunk at the end
       if (currentSentence.trim() && ttsReady && workerRef.current) {
-         workerRef.current.postMessage({ type: 'GENERATE', text: currentSentence.trim(), voice_id: selectedVoice });
+         const cleaned = cleanForTTS(currentSentence);
+         if (cleaned) {
+            workerRef.current.postMessage({ type: 'GENERATE', text: cleaned, voice_id: selectedVoice });
+         }
       }
 
       // If the agent chose to remain silent (e.g. evaluating the canvas without comment), remove the placeholder
@@ -533,22 +550,23 @@ export default function InterviewSessionPage({ params }) {
 
             <button
               onClick={handleStart}
+              disabled={!ttsReady}
               style={{
                 width: '100%',
                 padding: '12px',
-                background: '#111827',
+                background: !ttsReady ? '#9ca3af' : '#111827',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '6px',
                 fontSize: '14px',
                 fontWeight: '500',
-                cursor: 'pointer',
+                cursor: !ttsReady ? 'not-allowed' : 'pointer',
                 transition: 'background-color 0.2s ease'
               }}
-              onMouseOver={e => e.target.style.background = '#374151'}
-              onMouseOut={e => e.target.style.background = '#111827'}
+              onMouseOver={e => { if (ttsReady) e.target.style.background = '#374151' }}
+              onMouseOut={e => { if (ttsReady) e.target.style.background = '#111827' }}
             >
-              Start Interview ({linkData.durationMin} min)
+              {!ttsReady ? 'Loading Model...' : `Start Interview (${linkData.durationMin} min)`}
             </button>
           </div>
         </div>

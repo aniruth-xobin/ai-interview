@@ -163,7 +163,7 @@ You MUST output a valid JSON object matching the following structure exactly. Do
         const groq = new Groq({ apiKey: activeKey })
         completion = await groq.chat.completions.create({
           messages: [{ role: 'system', content: systemPrompt }],
-          model: 'llama-3.3-70b-versatile',
+          model: 'openai/gpt-oss-120b',
           temperature: 0.2, 
           response_format: { type: "json_object" },
           max_tokens: 1000
