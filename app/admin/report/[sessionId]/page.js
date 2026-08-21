@@ -46,6 +46,7 @@ export default function ReportDetails({ params }) {
   if (loading) return <div className={styles.container}><div className={styles.emptyState}>Loading...</div></div>
   if (!sessionData) return <div className={styles.container}><div className={styles.emptyState}>Session not found</div></div>
 
+  const safeRender = (val) => typeof val === 'object' && val !== null ? JSON.stringify(val) : val;
   const report = sessionData.reportJson ? (typeof sessionData.reportJson === 'string' ? JSON.parse(sessionData.reportJson) : sessionData.reportJson) : {}
   const transcript = sessionData.transcriptJson ? (typeof sessionData.transcriptJson === 'string' ? JSON.parse(sessionData.transcriptJson) : sessionData.transcriptJson) : []
 
@@ -82,9 +83,9 @@ export default function ReportDetails({ params }) {
           <div style={{ padding: '20px', background: report.decision.toLowerCase() === 'hire' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${report.decision.toLowerCase() === 'hire' ? '#bbf7d0' : '#fecaca'}`, borderRadius: '8px', marginBottom: '32px' }}>
             <h3 style={{ margin: '0 0 8px 0', color: report.decision.toLowerCase() === 'hire' ? '#166534' : '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-              Decision: {report.decision}
+              Decision: {safeRender(report.decision)}
             </h3>
-            <p style={{ margin: 0, fontSize: '14px', color: '#374151', lineHeight: 1.5 }}>{report.feedback}</p>
+            <p style={{ margin: 0, fontSize: '14px', color: '#374151', lineHeight: 1.5 }}>{safeRender(report.feedback)}</p>
           </div>
         )}
 
@@ -92,13 +93,13 @@ export default function ReportDetails({ params }) {
           <div style={{ flex: 1 }}>
             <h4 style={{ margin: '0 0 12px 0', color: '#111827', fontSize: '15px' }}>Strengths</h4>
             <ul style={{ paddingLeft: '20px', margin: 0, fontSize: '14px', color: '#4b5563', lineHeight: 1.6 }}>
-              {report.strengths?.map((s, i) => <li key={i}>{s}</li>) || <li>No strengths recorded</li>}
+              {report.strengths?.map((s, i) => <li key={i}>{safeRender(s)}</li>) || <li>No strengths recorded</li>}
             </ul>
           </div>
           <div style={{ flex: 1 }}>
             <h4 style={{ margin: '0 0 12px 0', color: '#111827', fontSize: '15px' }}>Areas for Improvement</h4>
             <ul style={{ paddingLeft: '20px', margin: 0, fontSize: '14px', color: '#4b5563', lineHeight: 1.6 }}>
-              {report.weaknesses?.map((w, i) => <li key={i}>{w}</li>) || <li>No weaknesses recorded</li>}
+              {report.weaknesses?.map((w, i) => <li key={i}>{safeRender(w)}</li>) || <li>No weaknesses recorded</li>}
             </ul>
           </div>
         </div>
@@ -106,7 +107,7 @@ export default function ReportDetails({ params }) {
         {report.recommendation && (
           <div style={{ marginTop: '24px', padding: '16px', background: '#f8fafc', borderLeft: '4px solid #3b82f6', borderRadius: '4px' }}>
             <h4 style={{ margin: '0 0 8px 0', color: '#1e40af', fontSize: '15px' }}>Recommendation</h4>
-            <p style={{ margin: 0, fontSize: '14px', color: '#334155', lineHeight: 1.6 }}>{report.recommendation}</p>
+            <p style={{ margin: 0, fontSize: '14px', color: '#334155', lineHeight: 1.6 }}>{safeRender(report.recommendation)}</p>
           </div>
         )}
       </div>
@@ -144,7 +145,7 @@ export default function ReportDetails({ params }) {
                 <strong style={{ color: msg.role === 'agent' ? '#2563eb' : '#059669', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {msg.role === 'agent' ? 'Interviewer' : sessionData.candidateName || 'Candidate'}
                 </strong>
-                <p style={{ margin: '6px 0 0 0', fontSize: '14px', color: '#374151', lineHeight: 1.5 }}>{msg.text}</p>
+                <p style={{ margin: '6px 0 0 0', fontSize: '14px', color: '#374151', lineHeight: 1.5 }}>{safeRender(msg.text)}</p>
               </div>
             ))
           )}
