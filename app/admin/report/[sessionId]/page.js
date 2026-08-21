@@ -7,52 +7,11 @@ const SvgRenderer = dynamic(() => import('@/components/SvgRenderer'), { ssr: fal
 import styles from '../../page.module.css'
 import { supabase } from '@/lib/supabase'
 
-
-client'
-export const runtime = 'edge';
-import { useState, useEffect, use } from 'react'
-import Link from 'next/link'
-import dynamic from 'next/dynamic'
-const SvgRenderer = dynamic(() => import('@/components/SvgRenderer'), { ssr: false })
-import styles from '../../page.module.css'
-import { supabase } from '@/lib/supabase'
-
-
-if (typeof window !== 'undefined') {
-  window.EXCALIDRAW_ASSET_PATH = "https://unpkg.com/@excalidraw/excalidraw/dist/"
-  
-  if (!window._workerPatched) {
-    window._workerPatched = true;
-    const OriginalWorker = window.Worker;
-    window.Worker = class extends OriginalWorker {
-      constructor(url, options) {
-        const urlStr = url instanceof URL ? url.href : String(url);
-        if (urlStr.includes('excalidraw') && urlStr.includes('file://')) {
-          super(URL.createObjectURL(new Blob([''], { type: 'application/javascript' })), options);
-        } else {
-          super(url, options);
-        }
-      }
-    };
-
-    // Suppress Excalidraw's expected timeout from the dummy worker
-    const originalConsoleError = console.error;
-    console.error = (...args) => {
-      const msg = args.map(a => (a instanceof Error ? a.message : (typeof a === 'string' ? a : ''))).join(' ');
-      if (msg.includes('Active worker did not respond')) {
-        return;
-      }
-      originalConsoleError.apply(console, args);
-    };
-  }
-}
-
 export default function ReportDetails({ params }) {
   const unwrappedParams = use(params)
   const sessionId = unwrappedParams.sessionId
   const [sessionData, setSessionData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [svgMarkup, setSvgMarkup] = useState(null)
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -67,44 +26,6 @@ export default function ReportDetails({ params }) {
     }
     fetchSession()
   }, [sessionId])
-
-  useEffect(() => {
-    if (sessionData?.canvasJson) {
-      import('@excalidraw/excalidraw').then(mod => {
-        const elements = typeof sessionData.canvasJson === 'string' ? JSON.parse(sessionData.canvasJson) : sessionData.canvasJson;
-        const activeElements = elements.filter(el => !el.isDeleted);
-        if (activeElements && activeElements.length > 0) {
-          try {
-            mod.exportToSvg({
-              elements: activeElements,
-              appState: {
-                exportBackground: true,
-                viewBackgroundColor: '#ffffff',
-                exportWithDarkMode: false,
-                exportScale: 1
-              },
-              files: null
-            }).then(svg => {
-              // Remove the hardcoded width/height so it scales naturally
-              svg.removeAttribute('width')
-              svg.removeAttribute('height')
-              svg.style.width = '100%'
-              svg.style.height = '100%'
-              setSvgMarkup(svg.outerHTML)
-            }).catch(err => {
-              console.error("Error generating SVG:", err)
-              setSvgMarkup('<svg></svg>')
-            })
-          } catch (err) {
-            console.error("Synchronous error generating SVG:", err)
-            setSvgMarkup('<svg></svg>')
-          }
-        } else {
-          setSvgMarkup('<svg></svg>')
-        }
-      })
-    }
-  }, [sessionData?.canvasJson])
 
   const handleStatusUpdate = async (newStatus) => {
     try {
@@ -208,19 +129,7 @@ export default function ReportDetails({ params }) {
       <div className={styles.card}>
         <h2 className={styles.title}>Final Architecture Diagram</h2>
         <div style={{ height: '500px', border: '1px solid #eaeaea', borderRadius: '8px', overflow: 'hidden', background: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {svgMarkup ? (
-            svgMarkup === '<svg></svg>' ? (
-              <div className={styles.emptyState}>No canvas data found</div>
-            ) : (
-              <div dangerouslySetInnerHTML={{ __html: svgMarkup }} style={{ width: '100%', height: '100%', padding: '20px', boxSizing: 'border-box' }} />
-            )
-          ) : sessionData?.canvasJson ? (
-            <div className={styles.emptyState}>Rendering Diagram...</div>
-          ) : (
-            <div className={styles.emptyState}>
-              No canvas data found
-            </div>
-          )}
+          <SvgRenderer canvasJson={sessionData?.canvasJson} />
         </div>
       </div>
 
