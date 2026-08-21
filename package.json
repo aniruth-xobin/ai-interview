@@ -11,7 +11,8 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "node patch.cjs"
+    "postinstall": "node patch.cjs",
+    "pages:build": "npx @cloudflare/next-on-pages"
   },
   "dependencies": {
     "@diffusionstudio/vits-web": "^1.0.3",
@@ -29,7 +30,6 @@
     "kokoro-js": "^1.2.1",
     "lucide-react": "^1.33.0",
     "next": "^16.2.10",
-    "pdf-parse": "^1.1.1",
     "pg": "^8.23.0",
     "prisma": "^7.8.0",
     "react": "19.2.4",
@@ -38,6 +38,7 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.16",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.10"
