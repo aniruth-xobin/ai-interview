@@ -1,4 +1,6 @@
-'use client'\nexport const runtime = 'edge';\nimport { useState, useRef, useEffect, use } from 'react'
+'use client'
+export const runtime = 'edge';
+import { useState, useRef, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from '../page.module.css'
 import CanvasArea from '@/components/CanvasArea'
