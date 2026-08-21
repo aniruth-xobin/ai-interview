@@ -1,4 +1,4 @@
-export const runtime = 'edge';
+
 import { Groq } from 'groq-sdk'
 
 // A module-level variable to keep track of the current key index.

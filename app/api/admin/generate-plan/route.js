@@ -1,4 +1,4 @@
-export const runtime = 'edge';
+
 import Groq from 'groq-sdk'
 
 let currentKeyIndex = 0
