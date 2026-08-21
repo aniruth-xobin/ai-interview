@@ -3,9 +3,10 @@ export const runtime = 'edge';
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+const SvgRenderer = dynamic(() => import('@/components/SvgRenderer'), { ssr: false })
 import styles from '../../page.module.css'
 import { supabase } from '@/lib/supabase'
-import '@excalidraw/excalidraw/index.css'
+
 
 if (typeof window !== 'undefined') {
   window.EXCALIDRAW_ASSET_PATH = "https://unpkg.com/@excalidraw/excalidraw/dist/"
