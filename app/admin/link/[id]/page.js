@@ -1,5 +1,4 @@
-'use client'
-import { useState, useEffect, use } from 'react'
+'use client'\nexport const runtime = 'edge';\nimport { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 

@@ -1,4 +1,4 @@
-
+export const runtime = 'edge';\n
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
