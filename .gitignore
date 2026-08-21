@@ -41,3 +41,21 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# Scratch / dev-only root files
+migrate.js
+test-groq.js
+patch.cjs
+prisma.config.ts
+AGENTS.md
+CLAUDE.md
+
+# Default Next.js placeholder assets
+/public/file.svg
+/public/globe.svg
+/public/next.svg
+/public/vercel.svg
+/public/window.svg
+
+# Prisma (using Supabase directly)
+/prisma/

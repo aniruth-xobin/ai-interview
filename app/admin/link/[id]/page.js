@@ -11,6 +11,10 @@ export default function LinkDetails({ params }) {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('candidates')
+  const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '' })
+
+  const showAlert = (message) => setAlertConfig({ isOpen: true, message })
+  const closeAlert = () => setAlertConfig({ isOpen: false, message: '' })
 
   useEffect(() => {
     const fetchData = async () => {
@@ -49,7 +53,7 @@ export default function LinkDetails({ params }) {
             onClick={() => {
               const url = `${window.location.origin}/interview/${linkData.id}`
               navigator.clipboard.writeText(url)
-              alert('Interview Link Copied!')
+              showAlert('Interview Link Copied!')
             }}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', border: '1px solid #eaeaea', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer', color: '#374151' }}
           >
@@ -186,6 +190,25 @@ export default function LinkDetails({ params }) {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Custom Alert Modal */}
+      {alertConfig.isOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+               <img src="/favicon.ico" width="40" height="40" alt="Xobin" style={{ borderRadius: '8px' }} />
+            </div>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '18px', color: '#111827', textAlign: 'center' }}>Notification</h4>
+            <p style={{ margin: '0 0 24px 0', fontSize: '15px', color: '#4b5563', textAlign: 'center' }}>{alertConfig.message}</p>
+            <button 
+              onClick={closeAlert} 
+              style={{ width: '100%', padding: '10px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}
+            >
+              OK
+            </button>
           </div>
         </div>
       )}

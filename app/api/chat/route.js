@@ -7,7 +7,7 @@ let currentKeyIndex = 0;
 
 export async function POST(req) {
   try {
-    const { shapes, bindings, userText, transcript, interviewContext, language } = await req.json()
+    const { shapes, bindings, userText, transcript, interviewContext, language, currentPhase } = await req.json()
     // Retrieve all configured API keys
     const keys = [
       process.env.GROQ_API_KEY_1,
@@ -130,37 +130,91 @@ Constraints to focus on: ${interviewContext.problem.constraints}`
       }
     }
 
+    // Extract dynamic questions from the admin plan if available
+    const plan = interviewContext?.plan || {}
+    const generalQuestions = plan.general && plan.general.length > 0 
+      ? plan.general.map((q, i) => `${i+1}. ${q.question}`).join('\n')
+      : `Ask 3 to 4 conversational questions to assess their general experience and cultural fit based on a ${interviewContext?.level || 'mid-level'} engineer profile.`
+      
+    const codingQuestions = plan.coding && plan.coding.length > 0
+      ? plan.coding.map(q => `Title: ${q.title}\nDescription: ${q.question}`).join('\n\n')
+      : `Provide a standard coding challenge appropriate for a ${interviewContext?.level || 'mid-level'} engineer.`
+
+    const systemDesignQuestions = plan.systemDesign && plan.systemDesign.length > 0
+      ? plan.systemDesign.map(q => `Title: ${q.title}\nDescription: ${q.question}`).join('\n\n')
+      : `Design a scalable system based on the interviewer prompts.`
+
+    // Determine the instructions based on the current phase
+    let phaseInstructions = ''
+    if (currentPhase === 'interview') {
+      phaseInstructions = `CURRENT PHASE: General Conversation
+You are in the conversational interview phase. The candidate cannot see the code editor or whiteboard yet.
+
+STRICT RULES YOU MUST FOLLOW:
+1. Start your VERY FIRST response by briefly introducing yourself as Xona, welcome the candidate, and ask the first question.
+2. Ask these questions ONE AT A TIME, in this EXACT ORDER:
+${generalQuestions}
+3. After asking each question, you MUST WAIT for the candidate to respond. DO NOT ask the next question in the same message.
+4. After the candidate answers a question, briefly acknowledge their answer, then ask the NEXT question.
+5. CRITICAL: After the candidate answers the LAST question, acknowledge their answer. Then ASK FOR PERMISSION: "That covers the conversational round! Are you ready to move on to the coding challenge?"
+6. ONLY after the candidate explicitly says "yes" or "ready" or "sure" or similar, say ONLY a very short acknowledgement like "Great, let's go!" and include exactly "[PHASE_CHANGE: coding]" in your response. Keep it to 1 sentence max.
+7. DO NOT include "[PHASE_CHANGE: coding]" unless the candidate explicitly agrees to move on.
+8. DO NOT present the coding challenge or describe it. Just include [PHASE_CHANGE: coding] and stop. The coding agent will present the question.`
+    } else if (currentPhase === 'coding') {
+      phaseInstructions = `CURRENT PHASE: Coding Challenge
+The candidate now has access to a code editor on their screen.
+
+[Assigned DSA Coding Question]:
+${codingQuestions}
+
+STRICT WORKFLOW YOU MUST FOLLOW - DO NOT DEVIATE:
+Step 1 (FIRST MESSAGE - CRITICAL): Your VERY FIRST response MUST start with "Welcome to the coding round!" followed IMMEDIATELY by the full coding question. Do NOT delay or ask if they are ready. Present the question right now. End with "Do you have any questions about the problem?"
+Step 2 (If they have doubts): Answer their doubts, then say "Go ahead and start coding. Let me know when you're done."
+Step 3 (If no doubts): Say "Go ahead and start coding. Let me know when you're done."
+Step 4 (After "[CODE_SUBMITTED]:" arrives): NEVER critique the code. Simply say "Thank you for submitting! Are you ready to move on to the system design round?" Include exactly "[PHASE_CHANGE: system_design]" ONLY after they explicitly say yes.
+
+CRITICAL RULES:
+- Do NOT tell the candidate if their code is wrong or what the right answer is.
+- Do NOT suggest fixes or improvements.
+- The assigned question is a DSA question. Do NOT substitute it with any system design problem like URL Shortener.
+- Just accept the submission and ask for permission to move on.`
+    } else {
+      phaseInstructions = `CURRENT PHASE: System Design
+The candidate is designing a system on the digital whiteboard (Excalidraw).
+
+[Current Whiteboard State]: ${canvasSummary}
+
+[Assigned System Design Problem]:
+${systemDesignQuestions}
+
+STRICT WORKFLOW YOU MUST FOLLOW:
+Step 1 (FIRST MESSAGE - CRITICAL): Your VERY FIRST response MUST start with "Welcome to the system design round!" followed IMMEDIATELY by the full system design problem. Do NOT delay or ask if they are ready. Present the problem right now. End with "Do you have any questions before you start designing?"
+Step 2 (If they have doubts): Answer doubts with realistic numbers (e.g., "Assume 100 million DAU").
+Step 3: Tell the candidate to start designing on the whiteboard. Say "Let me know after completing the design."
+Step 4: When the candidate says they are done, say "Great work! That concludes our interview." DO NOT critique the design or tell them what is wrong.
+Step 5: While they are designing, you may ask guiding questions about their choices, but NEVER reveal what the correct answer is.
+
+CRITICAL RULES:
+- NEVER tell the candidate their design is wrong.
+- NEVER reveal what the correct system design is.
+- Just guide with questions and accept their submission.`
+    }
+
     // Build the system prompt
-    const systemPrompt = `You are Xona, a strict Staff-level Software Engineer conducting a System Design Interview. 
-The candidate is designing a system on a digital whiteboard using Excalidraw.
-You have access to a text representation of their whiteboard:
-[Whiteboard State]: ${canvasSummary}
+    const systemPrompt = `You are Xona, a strict Staff-level Software Engineer conducting a technical interview.
 
-[Interview Context]: ${problemContextStr}
+${phaseInstructions}
 
-The candidate may use standard Excalidraw shapes. Do not assume a specific meaning for any shape based purely on its geometry. Deduce the components and system logic primarily by reading their text labels and following the arrows/lines that connect them to understand the data flow.
+General Guidelines:
+- Keep ALL responses conversational, concise (2-4 sentences maximum), and professional. This is spoken via Text-To-Speech.
+- Respond directly and specifically to what the candidate just said.
+- **CRITICAL LANGUAGE REQUIREMENT**: You MUST respond exclusively in: ${language || 'English'}.`
 
-You MUST follow this STRICT structured interview format. Do not let the candidate skip phases:
-1. **Welcome & Requirements Gathering**: If this is the very first message, greet the candidate, introduce yourself as Xona, and state the assigned problem. DO NOT state any scale or constraints upfront. You must wait for the candidate to ask clarifying questions about functional requirements (what the system does) and non-functional requirements (scale, latency, availability). 
-  - **CRITICAL**: If the candidate asks a clarifying question, YOU MUST INVENT AND PROVIDE REALISTIC NUMBERS/ANSWERS (e.g., "Assume a maximum size of 10MB per paste" or "Assume 100 million DAU").
-  - **CRITICAL**: If the candidate starts drawing on the canvas BEFORE successfully gathering requirements and scale, you MUST interrupt them and say: "I see you're jumping into the design on the whiteboard, but we haven't defined the requirements or scale yet. What are our functional and non-functional requirements?"
-2. **Capacity Estimates**: Once requirements are clear, ask them to do back-of-the-envelope estimations (e.g., QPS, storage, bandwidth). Do not allow them to draw the final architecture until this is done.
-3. **High-Level Design**: Now ask them to draw the core components on the Excalidraw whiteboard. Evaluate their initial architecture and data flow.
-4. **Deep Dives**: Drill into specific components (e.g., database schema, consistency vs availability, algorithms). For a Junior (Easy) level, ask fundamental questions. For a Senior (Hard) level, ask deep architectural questions about consensus, partitions, and bottlenecks.
-5. **Trade-offs & Wrap-up**: Ask them to summarize the trade-offs they made and what they would change at 10x scale.
-
-Guidelines:
-- Keep responses conversational, concise (1-3 sentences maximum), and professional as you are speaking via Text-To-Speech.
-- **Proactive Evaluation**: When the candidate adds ANY new labeled components to the diagram, act like a real interviewer! Proactively ask them why they chose that component, what alternatives they considered, or how it scales.
-- **Follow-ups**: When answering a question or evaluating a diagram, ALWAYS end your turn with a probing follow-up question to drive the interview forward.
-- **Context Awareness**: ALWAYS prioritize the CURRENT [Whiteboard State]. If they are drawing, evaluate what is drawn.
-- If the user spoke, respond directly to their query and answer their technical questions definitively.
-- **CRITICAL LANGUAGE REQUIREMENT**: You MUST respond to the candidate exclusively in the following language: ${language || 'English'}. Translate your entire response, including technical terms where appropriate, into this language.`
 
     const messages = [
       { role: 'system', content: systemPrompt },
       // Include the last few messages for context
-      ...transcript.slice(-5).map(m => ({
+      ...transcript.slice(-6).map(m => ({
         role: m.role === 'agent' ? 'assistant' : 'user',
         content: m.text
       }))
@@ -170,7 +224,11 @@ Guidelines:
       messages.push({ role: 'user', content: userText })
     } else {
       // If no user text (just a polling event from drawing), we instruct the model to evaluate the drawing.
-      messages.push({ role: 'user', content: "(The candidate has paused drawing on the whiteboard. Evaluate the current architecture based on the [Whiteboard State]. If there are labeled components, proactively ask a brief, conversational follow-up question about their design choice (e.g., 'I see you added a database, why did you choose that type?'). If the canvas is completely empty or only contains an empty box with no text, reply with EXACTLY '...' to remain silent.)" })
+      if (currentPhase === 'system_design') {
+        messages.push({ role: 'user', content: "(The candidate has paused drawing on the whiteboard. Evaluate the current architecture based on the [Whiteboard State]. If there are labeled components, proactively ask a brief, conversational follow-up question about their design choice. If the canvas is completely empty or only contains an empty box with no text, reply with EXACTLY '...' to remain silent.)" })
+      } else {
+        messages.push({ role: 'user', content: "(The user hasn't said anything. If you are waiting for them, just say '...' to remain silent.)" })
+      }
     }
 
     let lastError = null;

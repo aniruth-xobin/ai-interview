@@ -4,7 +4,7 @@ let currentKeyIndex = 0;
 
 export async function POST(req) {
   try {
-  const { shapes, bindings, transcript, interviewContext } = await req.json()
+  const { shapes, bindings, rawElements, transcript, interviewContext, submittedCode } = await req.json()
     
     const keys = [
       process.env.GROQ_API_KEY_1,
@@ -22,13 +22,16 @@ export async function POST(req) {
     // Build a spatial/topological summary of the canvas
     let canvasSummary = 'The canvas is currently empty.'
     
-    if (shapes && shapes.length > 0) {
+    // Use rawElements (native Excalidraw format) if available, otherwise fall back to simplified shapes
+    const effectiveShapes = (rawElements && rawElements.length > 0) ? rawElements : shapes;
+    
+    if (effectiveShapes && effectiveShapes.length > 0) {
       const shapeMap = {}
-      shapes.forEach(s => { shapeMap[s.id] = s })
+      effectiveShapes.forEach(s => { shapeMap[s.id] = s })
       
-      const standaloneTexts = shapes.filter(s => s.type === 'text')
-      const arrows = shapes.filter(s => s.type === 'arrow')
-      const nodes = shapes.filter(s => s.type !== 'text' && s.type !== 'arrow')
+      const standaloneTexts = effectiveShapes.filter(s => s.type === 'text' && !s.isDeleted)
+      const arrows = effectiveShapes.filter(s => s.type === 'arrow' && !s.isDeleted)
+      const nodes = effectiveShapes.filter(s => !['text', 'arrow', 'freedraw'].includes(s.type) && !s.isDeleted)
       
       arrows.forEach(a => {
         const startBinding = (bindings || []).find(b => b.fromId === a.id && b.terminal === 'start')
@@ -105,16 +108,26 @@ export async function POST(req) {
       canvasSummary = desc
     }
 
-    const systemPrompt = `You are an expert Staff-level Software Engineer grading a candidate's System Design Interview.
-You have access to their assigned problem, their final whiteboard state, and the entire conversation transcript.
+    const systemPrompt = `You are an expert Staff-level Software Engineer grading a candidate's Multi-Phase Technical Interview.
+You have access to their assigned problem, their final whiteboard state (System Design), their submitted code (Coding Phase), and the entire conversation transcript.
 
-[Assigned Problem]:
-${interviewContext?.problem?.title || 'System Design'}
-${interviewContext?.problem?.description || ''}
-${interviewContext?.problem?.constraints || ''}
+[Assigned Problem & Context]:
+Role: ${interviewContext?.problem?.title || 'System Design'}
+Description: ${interviewContext?.problem?.description || ''}
+Constraints: ${interviewContext?.problem?.constraints || ''}
+
+[Interview Plan]:
+General Questions: ${interviewContext?.plan?.general ? interviewContext.plan.general.map(q => q.question).join(' | ') : 'N/A'}
+Coding Problem: ${interviewContext?.plan?.coding ? interviewContext.plan.coding.map(q => q.question).join(' | ') : 'N/A'}
+System Design Problem: ${interviewContext?.plan?.systemDesign ? interviewContext.plan.systemDesign.map(q => q.question).join(' | ') : 'N/A'}
 
 [Expected Seniority Level]:
 ${interviewContext?.level || 'medium'}
+
+[Submitted Code]:
+\`\`\`
+${submittedCode || 'No code was submitted.'}
+\`\`\`
 
 [Final Whiteboard State]:
 ${canvasSummary}
@@ -122,16 +135,15 @@ ${canvasSummary}
 [Conversation Transcript]:
 ${transcript.map(m => `${m.role === 'agent' ? 'Interviewer' : 'Candidate'}: ${m.text}`).join('\n')}
 
-Based on the whiteboard design and the candidate's responses in the chat, evaluate their performance against the [Expected Seniority Level]. A Junior (easy) should be graded more leniently on architecture depth than a Senior (hard).
+Based on the whiteboard design, the submitted code, and the candidate's responses in the chat, evaluate their performance against the [Expected Seniority Level]. A Junior (easy) should be graded more leniently than a Senior (hard).
 
 CRITICAL GRADING RUBRIC:
-You must grade the candidate on their adherence to the proper system design lifecycle:
-1. **Requirement Gathering**: Did they explicitly ask for and define Functional and Non-Functional Requirements (FR/NFRs)?
-2. **Capacity Estimation**: Did they do back-of-the-envelope math?
-3. **High-Level Design**: Did they draw a sound architecture?
-4. **Deep Dives**: Did they successfully answer drill-down questions about bottlenecks/trade-offs?
+You must grade the candidate on their performance across all three phases based on the [Interview Plan] provided above:
+1. **General Conversation**: Did they answer the behavioral/experience questions well?
+2. **Coding Phase**: Was the submitted code syntactically correct, logical, and optimal for the assigned Coding Problem?
+3. **System Design Phase**: Did they draw a sound architecture and gather requirements for the assigned System Design Problem?
 
-**PENALTY**: If the candidate immediately started drawing the architecture without first asking clarifying questions to gather requirements and scale, their maximum possible score is a 5/10, regardless of how good the drawing is.
+**PENALTY**: If the candidate submitted completely invalid code or skipped drawing an architecture, reflect this heavily in the score.
 
 You MUST output a valid JSON object matching the following structure exactly. Do NOT wrap the JSON in Markdown (like \`\`\`json). Just return the raw JSON object.
 

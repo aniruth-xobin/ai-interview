@@ -72,11 +72,11 @@ export default function LandingPage() {
             </div>
 
             <h1 className={styles.headline}>
-              Master your system<br />design interviews
+              Master your technical<br />interviews
             </h1>
 
             <p className={styles.subheadline}>
-              Practice with an elite AI engineering manager. Draw architectures on a digital whiteboard, get real-time feedback, and land your dream job at a top-tier tech company.
+              Practice with an elite AI engineering manager. Write code, design architectures, get real-time feedback, and land your dream job at a top-tier tech company.
             </p>
 
             <div className={styles.ctaWrapper}>
@@ -117,7 +117,7 @@ export default function LandingPage() {
               </div>
               <h3 className={styles.featureCardTitle}>Interactive Canvas</h3>
               <p className={styles.featureCardDesc}>
-                Draw your system architecture naturally using our built-in whiteboard tools.
+                Write code and draw system architectures naturally using our built-in tools.
               </p>
             </div>
 
@@ -157,7 +157,7 @@ export default function LandingPage() {
             <div className={styles.ctaContent}>
               <h2 className={styles.ctaTitle}>Ready to Ace Your Next Interview?</h2>
               <p className={styles.ctaSubtitle}>
-                Join thousands of engineers who have leveled up their system design skills with our AI-powered interactive whiteboarding platform.
+                Join thousands of engineers who have leveled up their technical interview skills with our AI-powered interactive platform.
               </p>
               <Link href="/interview" className={styles.ctaButton}>
                 Start Practicing Now

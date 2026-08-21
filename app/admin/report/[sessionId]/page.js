@@ -61,14 +61,18 @@ export default function ReportDetails({ params }) {
     if (sessionData?.canvasJson) {
       import('@excalidraw/excalidraw').then(mod => {
         const elements = typeof sessionData.canvasJson === 'string' ? JSON.parse(sessionData.canvasJson) : sessionData.canvasJson;
-        if (elements && elements.length > 0) {
+        const activeElements = elements.filter(el => !el.isDeleted);
+        if (activeElements && activeElements.length > 0) {
           try {
             mod.exportToSvg({
-              elements,
+              elements: activeElements,
               appState: {
                 exportBackground: true,
-                viewBackgroundColor: '#ffffff'
-              }
+                viewBackgroundColor: '#ffffff',
+                exportWithDarkMode: false,
+                exportScale: 1
+              },
+              files: null
             }).then(svg => {
               // Remove the hardcoded width/height so it scales naturally
               svg.removeAttribute('width')
@@ -115,7 +119,7 @@ export default function ReportDetails({ params }) {
 
   return (
     <div className={styles.container}>
-      <Link href={`/admin/link/${sessionData.interviewLinkId}`} className={styles.linkBtn} style={{ width: 'fit-content', marginBottom: '-16px' }}>
+      <Link href={`/admin/link/${sessionData.interviewLinkId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: '#f3f4f6', color: '#374151', textDecoration: 'none', borderRadius: '6px', fontWeight: '500', width: 'fit-content', border: '1px solid #e5e7eb', marginBottom: '20px' }}>
         &larr; Back to Link Details
       </Link>
       
@@ -173,6 +177,21 @@ export default function ReportDetails({ params }) {
             <p style={{ margin: 0, fontSize: '14px', color: '#334155', lineHeight: 1.6 }}>{report.recommendation}</p>
           </div>
         )}
+      </div>
+
+      
+      <div className={styles.card}>
+        <h2 className={styles.title}>Submitted Code</h2>
+        <div style={{ background: '#1e1e2e', padding: '24px', borderRadius: '8px', overflowX: 'auto', border: '1px solid #eaeaea' }}>
+          {(() => {
+            const codeMsg = [...transcript].reverse().find(m => m.role === 'user' && m.text.includes('[CODE_SUBMITTED]:'));
+            if (codeMsg) {
+               const code = codeMsg.text.split('[CODE_SUBMITTED]:')[1].trim();
+               return <pre style={{ margin: 0, color: '#cdd6f4', fontFamily: 'monospace', fontSize: '14px' }}><code>{code}</code></pre>;
+            }
+            return <div className={styles.emptyState} style={{ color: '#a0a0a0' }}>No code submitted during this session.</div>;
+          })()}
+        </div>
       </div>
 
       <div className={styles.card}>

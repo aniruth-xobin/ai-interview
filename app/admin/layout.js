@@ -116,6 +116,16 @@ export default function AdminLayout({ children }) {
     )
   }
 
+  const isWizardRoute = pathname === '/admin/create'
+  
+  if (isWizardRoute) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fb' }}>
+        {children}
+      </div>
+    )
+  }
+
   return (
     <div className={styles.adminLayout}>
       <div className={styles.backgroundGlow} />

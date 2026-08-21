@@ -5,8 +5,8 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const fustat = Fustat({ subsets: ['latin'], variable: '--font-fustat' })
 
 export const metadata = {
-  title: 'AI System Design Interview',
-  description: 'Interactive Agentic AI System Design Interview Platform',
+  title: 'AI Interview Platform',
+  description: 'Interactive Agentic AI Interview Platform',
   icons: {
     icon: '/favicon.ico',
   },
