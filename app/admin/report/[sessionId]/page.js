@@ -1,6 +1,6 @@
 'use client'
 export const runtime = 'edge';
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 const SvgRenderer = dynamic(() => import('@/components/SvgRenderer'), { ssr: false })
@@ -8,8 +8,7 @@ import styles from '../../page.module.css'
 import { supabase } from '@/lib/supabase'
 
 export default function ReportDetails({ params }) {
-  const unwrappedParams = use(params)
-  const sessionId = unwrappedParams.sessionId
+  const sessionId = params.sessionId
   const [sessionData, setSessionData] = useState(null)
   const [loading, setLoading] = useState(true)
 

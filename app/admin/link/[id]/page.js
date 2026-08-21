@@ -1,12 +1,11 @@
 'use client'
 export const runtime = 'edge';
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
 export default function LinkDetails({ params }) {
-  const unwrappedParams = use(params)
-  const id = unwrappedParams.id
+  const id = params.id
   const [linkData, setLinkData] = useState(null)
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)

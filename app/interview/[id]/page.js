@@ -1,6 +1,6 @@
 'use client'
 export const runtime = 'edge';
-import { useState, useRef, useEffect, use } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from '../page.module.css'
 import CanvasArea from '@/components/CanvasArea'
@@ -8,8 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { Mic, Code, PenTool, MessageSquare, Play, Square, Settings } from 'lucide-react'
 
 export default function InterviewSessionPage({ params }) {
-  const unwrappedParams = use(params)
-  const id = unwrappedParams.id
+  const id = params.id
   const [canvasState, setCanvasState] = useState([])
   const [transcript, setTranscript] = useState([])
   const transcriptRef = useRef([])
