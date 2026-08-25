@@ -37,6 +37,7 @@ export async function POST(request) {
     }
 
     // Step 3: Generate participant token
+    console.log('METADATA RECEIVED:', JSON.stringify(metadata, null, 2));
     const at = new AccessToken(apiKey, apiSecret, {
       identity: participantName,
       name: participantName,

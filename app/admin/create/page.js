@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -236,7 +236,7 @@ export default function AdminWizard() {
           {steps.map((step, idx) => (
             <div key={step.id} className={`${styles.step} ${currentStep === step.id ? styles.active : ''} ${currentStep > step.id ? styles.completed : ''}`}>
               <div className={styles.stepCircle}>
-                {currentStep > step.id ? '✓' : step.id}
+                {currentStep > step.id ? 'âœ“' : step.id}
               </div>
               {step.name}
               {idx < steps.length - 1 && <div className={styles.stepLine}></div>}
@@ -296,11 +296,7 @@ export default function AdminWizard() {
                 {interviewPlan.general.map((item, i) => renderCard(item, 'general', i))}
                 <button className={styles.addBtn}><Plus size={14} /> Add</button>
 
-                <h3 className={styles.sectionTitle} style={{ marginTop: '32px' }}>Coding Question</h3>
-                {interviewPlan.coding.map((item, i) => renderCard(item, 'coding', i))}
-
-                <h3 className={styles.sectionTitle} style={{ marginTop: '32px' }}>System Design</h3>
-                {interviewPlan.systemDesign.map((item, i) => renderCard(item, 'sd', i))}
+                
               </>
             )}
           </div>
@@ -396,3 +392,4 @@ export default function AdminWizard() {
     </div>
   )
 }
+

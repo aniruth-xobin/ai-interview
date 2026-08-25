@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 export const runtime = 'edge';
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -48,17 +48,30 @@ export default function LinkDetails({ params }) {
             </div>
             <h1 style={{ fontSize: '24px', fontWeight: '600', color: '#111827', margin: 0 }}>{linkData.title}</h1>
           </div>
-          <button 
-            onClick={() => {
-              const url = `${window.location.origin}/interview/${linkData.id}`
-              navigator.clipboard.writeText(url)
-              showAlert('Interview Link Copied!')
-            }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', border: '1px solid #eaeaea', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer', color: '#374151' }}
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-            Copy Invite Link
-          </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              onClick={() => {
+                const url = `${window.location.origin}/interview/${linkData.id}?pipeline=livekit`
+                navigator.clipboard.writeText(url)
+                showAlert('Pipeline A Link Copied!')
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', border: '1px solid #eaeaea', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer', color: '#374151' }}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+              Pipeline A (LiveKit)
+            </button>
+            <button 
+              onClick={() => {
+                const url = `${window.location.origin}/interview/${linkData.id}?pipeline=custom`
+                navigator.clipboard.writeText(url)
+                showAlert('Pipeline B Link Copied!')
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', border: '1px solid #eaeaea', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer', color: '#374151' }}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+              Pipeline B (Custom)
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -214,3 +227,6 @@ export default function LinkDetails({ params }) {
     </div>
   )
 }
+
+
+
