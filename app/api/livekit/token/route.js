@@ -37,7 +37,7 @@ export async function POST(request) {
     }
 
     // Step 3: Generate participant token
-    console.log('METADATA RECEIVED:', JSON.stringify(metadata, null, 2));
+    console.log('METADATA RECEIVED IN TOKEN ROUTE:', JSON.stringify(metadata, null, 2));
     const at = new AccessToken(apiKey, apiSecret, {
       identity: participantName,
       name: participantName,
@@ -58,3 +58,4 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Failed to generate token' }, { status: 500 });
   }
 }
+

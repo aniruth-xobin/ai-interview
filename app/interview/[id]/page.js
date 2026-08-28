@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -67,15 +67,20 @@ export default function CandidateInterviewPage({ params }) {
           body: JSON.stringify({
             roomName: `interview-${newSession.id}`,
             participantName: candidateName,
-            metadata: { 
-              mode: 'guided',
-              interviewGoals: (linkData.interviewPlan?.general || []).map(g => ({
+            metadata: (() => {
+              const plan = linkData.interviewPlan || {};
+              const goals = (plan.general || []).map(g => ({
                 title: g.title,
-                evaluationCriteria: g.question ? [g.question] : []
-              })),
-              interviewerName: 'Xona',
-              jobTitle: linkData.title || 'Candidate'
-            }
+                evaluationCriteria: g.evaluationCriteria || (g.question ? [g.question] : []),
+                requires_code: false
+              }));
+              return {
+                mode: 'guided',
+                interviewGoals: goals,
+                interviewerName: plan.interviewerName || 'Xona',
+                jobTitle: linkData.title || 'Candidate'
+              };
+            })()
           })
         })
         const data = await res.json()
@@ -110,7 +115,7 @@ export default function CandidateInterviewPage({ params }) {
         reportJson: JSON.stringify({ metrics })
       }).eq('id', currentSession.id);
       
-      console.log('Session updated in DB. Redirecting...');
+      console.log('Triggering Audit Agent Evaluator...'); try { await fetch('/api/audit/evaluate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: currentSession.id, sessionType: linkData?.interviewPlan?.mode || 'guided', telemetryDump: metrics, transcript: transcript }) }); } catch (e) { console.error('Failed to trigger audit evaluator:', e); } console.log('Session updated in DB. Redirecting...');
       // Redirect to completed page
       router.push(`/interview/${id}/completed`);
     } catch(err) {
@@ -196,3 +201,9 @@ export default function CandidateInterviewPage({ params }) {
         )}
       </div></div>)
 }
+
+
+
+
+
+

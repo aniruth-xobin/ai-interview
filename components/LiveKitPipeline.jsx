@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -48,35 +48,46 @@ function AgentUI({ onSessionEnd, onMetricsUpdate, candidateName }) {
   const latestTranscriptRef = useRef([]);
   const segments = useTranscriptions();
 
-  const thinkingStartTimeRef = useRef(null);
-  const latenciesRef = useRef([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const bargeInsRef = useRef(0);
+  const wasUserSpeakingRef = useRef(false);
+  const sessionStartTimeRef = useRef(null);
+  const ttftsRef = useRef([]);
+  const thinkingStartTimeRef = useRef(null);
+
+  useEffect(() => {
+    if (state === 'thinking') {
+      if (!thinkingStartTimeRef.current) {
+        thinkingStartTimeRef.current = Date.now();
+      }
+    } else if (state === 'speaking') {
+      if (thinkingStartTimeRef.current) {
+        const ttft = Date.now() - thinkingStartTimeRef.current;
+        ttftsRef.current.push(ttft);
+        thinkingStartTimeRef.current = null;
+      }
+    } else {
+      thinkingStartTimeRef.current = null;
+    }
+  }, [state]);
+  
+  useEffect(() => {
+    if (connectionState === 'connected' && !sessionStartTimeRef.current) {
+      sessionStartTimeRef.current = Date.now();
+    }
+  }, [connectionState]);
+
+  useEffect(() => {
+    if (state === 'speaking' && isUserSpeakingLive && !wasUserSpeakingRef.current) {
+      bargeInsRef.current += 1;
+    }
+    wasUserSpeakingRef.current = isUserSpeakingLive;
+  }, [isUserSpeakingLive, state]);
   
 
   useEffect(() => {
-    if (state === "thinking" && !thinkingStartTimeRef.current) {
-      thinkingStartTimeRef.current = Date.now();
+    if (state === "speaking" || state === "thinking") {
       setIsSpeaking(true);
-    } else if (state === "speaking") {
-      if (thinkingStartTimeRef.current) {
-        const thinkingDuration = Date.now() - thinkingStartTimeRef.current;
-        const totalLatency = thinkingDuration + 300; 
-        
-        if (totalLatency > 50 && totalLatency < 30000) {
-          latenciesRef.current = [...latenciesRef.current, totalLatency];
-          if (onMetricsUpdate) {
-            onMetricsUpdate({
-              latencies: latenciesRef.current,
-              turns: latenciesRef.current.length,
-            });
-          }
-        }
-        thinkingStartTimeRef.current = null;
-      }
-      setIsSpeaking(true);
-    } else if (state === "listening") {
-      thinkingStartTimeRef.current = null;
-      setIsSpeaking(false);
     } else {
       setIsSpeaking(false);
     }
@@ -96,19 +107,37 @@ function AgentUI({ onSessionEnd, onMetricsUpdate, candidateName }) {
     hasEndedRef.current = true;
     
     if (onSessionEnd) {
+      const avgTtft = ttftsRef.current.length > 0 
+        ? Math.floor(ttftsRef.current.reduce((a, b) => a + b, 0) / ttftsRef.current.length) 
+        : 0;
+
       onSessionEnd({
-        latencies: latenciesRef.current,
-        turns: latenciesRef.current.length
+        latencies: [], // legacy
+        turns: ttftsRef.current.length,
+        llm_ttft: avgTtft,
+        bargeIns: bargeInsRef.current,
+        durationSeconds: Math.floor((Date.now() - sessionStartTimeRef.current) / 1000)
       }, finalTranscript);
     }
   };
 
-  const formattedTranscript = segments.map(s => {
-    const text = s.text || (s.segments && s.segments[0]?.text) || "";
-    const identity = s.participantInfo?.identity || "Unknown";
-    const isLocal = identity === localParticipant?.identity || identity === candidateName;
-    return { role: isLocal ? "user" : "agent", text };
-  });
+  // Build merged transcript: group consecutive same-role segments into one bubble.
+  // LiveKit fires one segment per VAD chunk — we must merge same-speaker runs.
+  const formattedTranscript = useMemo(() => {
+    return segments.reduce((acc, s) => {
+      const text = (s.text || (s.segments && s.segments[0]?.text) || "").trim();
+      if (!text) return acc;
+      const identity = s.participantInfo?.identity || "Unknown";
+      const isLocal = identity === localParticipant?.identity || identity === candidateName;
+      const role = isLocal ? "user" : "agent";
+      if (acc.length > 0 && acc[acc.length - 1].role === role) {
+        acc[acc.length - 1] = { role, text: acc[acc.length - 1].text + " " + text };
+      } else {
+        acc.push({ role, text });
+      }
+      return acc;
+    }, []);
+  }, [segments, localParticipant?.identity, candidateName]);
 
   useEffect(() => {
     if (formattedTranscript.length > 0) {
@@ -136,3 +165,6 @@ function AgentUI({ onSessionEnd, onMetricsUpdate, candidateName }) {
     />
   );
 }
+
+
+
