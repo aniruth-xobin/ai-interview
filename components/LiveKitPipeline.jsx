@@ -27,10 +27,9 @@ export default function LiveKitPipeline({ token, serverUrl, onSessionEnd, onMetr
       serverUrl={serverUrl}
       connect={true}
       style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column", background: "#f8fafc" }}
-      
     >
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <AgentUI onSessionEnd={onSessionEnd} onMetricsUpdate={onMetricsUpdate} candidateName={candidateName} />
+        <AgentUI onSessionEnd={onSessionEnd} candidateName={candidateName} />
       </div>
       <RoomAudioRenderer />
       <StartAudio label="Click to allow audio" />
@@ -38,10 +37,10 @@ export default function LiveKitPipeline({ token, serverUrl, onSessionEnd, onMetr
   );
 }
 
-function AgentUI({ onSessionEnd, onMetricsUpdate, candidateName }) {
+function AgentUI({ onSessionEnd, candidateName }) {
   const { localParticipant } = useLocalParticipant();
   const isUserSpeakingLive = useIsSpeaking(localParticipant);
-  const { state, audioTrack } = useVoiceAssistant();
+  const { state } = useVoiceAssistant();
   const connectionState = useConnectionState();
   const hasEndedRef = useRef(false);
   const wasConnectedRef = useRef(false);
@@ -49,41 +48,6 @@ function AgentUI({ onSessionEnd, onMetricsUpdate, candidateName }) {
   const segments = useTranscriptions();
 
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const bargeInsRef = useRef(0);
-  const wasUserSpeakingRef = useRef(false);
-  const sessionStartTimeRef = useRef(null);
-  const ttftsRef = useRef([]);
-  const thinkingStartTimeRef = useRef(null);
-
-  useEffect(() => {
-    if (state === 'thinking') {
-      if (!thinkingStartTimeRef.current) {
-        thinkingStartTimeRef.current = Date.now();
-      }
-    } else if (state === 'speaking') {
-      if (thinkingStartTimeRef.current) {
-        const ttft = Date.now() - thinkingStartTimeRef.current;
-        ttftsRef.current.push(ttft);
-        thinkingStartTimeRef.current = null;
-      }
-    } else {
-      thinkingStartTimeRef.current = null;
-    }
-  }, [state]);
-  
-  useEffect(() => {
-    if (connectionState === 'connected' && !sessionStartTimeRef.current) {
-      sessionStartTimeRef.current = Date.now();
-    }
-  }, [connectionState]);
-
-  useEffect(() => {
-    if (state === 'speaking' && isUserSpeakingLive && !wasUserSpeakingRef.current) {
-      bargeInsRef.current += 1;
-    }
-    wasUserSpeakingRef.current = isUserSpeakingLive;
-  }, [isUserSpeakingLive, state]);
-  
 
   useEffect(() => {
     if (state === "speaking" || state === "thinking") {
@@ -91,11 +55,14 @@ function AgentUI({ onSessionEnd, onMetricsUpdate, candidateName }) {
     } else {
       setIsSpeaking(false);
     }
-  }, [state, onMetricsUpdate]);
+  }, [state]);
 
   const handleEnd = () => {
-    const finalTranscript = latestTranscriptRef.current.length > 0 
-      ? latestTranscriptRef.current 
+    if (hasEndedRef.current) return;
+    hasEndedRef.current = true;
+
+    const finalTranscript = latestTranscriptRef.current.length > 0
+      ? latestTranscriptRef.current
       : segments.map(s => {
           const text = s.text || (s.segments && s.segments[0]?.text) || "";
           const identity = s.participantInfo?.identity || "Unknown";
@@ -103,26 +70,13 @@ function AgentUI({ onSessionEnd, onMetricsUpdate, candidateName }) {
           return { role: isLocal ? "user" : "agent", text };
         });
 
-    if (hasEndedRef.current) return;
-    hasEndedRef.current = true;
-    
+    // Only pass the transcript - metrics now come from the Python server
     if (onSessionEnd) {
-      const avgTtft = ttftsRef.current.length > 0 
-        ? Math.floor(ttftsRef.current.reduce((a, b) => a + b, 0) / ttftsRef.current.length) 
-        : 0;
-
-      onSessionEnd({
-        latencies: [], // legacy
-        turns: ttftsRef.current.length,
-        llm_ttft: avgTtft,
-        bargeIns: bargeInsRef.current,
-        durationSeconds: Math.floor((Date.now() - sessionStartTimeRef.current) / 1000)
-      }, finalTranscript);
+      onSessionEnd({}, finalTranscript);
     }
   };
 
   // Build merged transcript: group consecutive same-role segments into one bubble.
-  // LiveKit fires one segment per VAD chunk — we must merge same-speaker runs.
   const formattedTranscript = useMemo(() => {
     return segments.reduce((acc, s) => {
       const text = (s.text || (s.segments && s.segments[0]?.text) || "").trim();
@@ -165,6 +119,3 @@ function AgentUI({ onSessionEnd, onMetricsUpdate, candidateName }) {
     />
   );
 }
-
-
-

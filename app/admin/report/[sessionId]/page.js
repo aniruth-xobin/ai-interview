@@ -241,11 +241,110 @@ export default function SessionReport({ params }) {
         );
       })()}
 
+      {/* TURN METRICS TIMELINE */}
+      {auditData?.turn_metrics_timeline?.length > 0 && (
+        <div className={styles.card}>
+          <h2 className={styles.title}>Turn-by-Turn Metrics Timeline</h2>
+          <div style={{ overflowX: 'auto', marginTop: '16px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '600', color: '#64748b' }}>Turn</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '600', color: '#64748b' }}>STT (ms)</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '600', color: '#64748b' }}>LLM TTFT (ms)</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '600', color: '#64748b' }}>TTS (ms)</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '600', color: '#64748b' }}>Tokens</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#64748b' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditData.turn_metrics_timeline.map((t, i) => {
+                  const llmSpike = t.llm_ttft_ms > 2000;
+                  const sttSpike = t.stt_ms > 600;
+                  const ttsSpike = t.tts_ttfb_ms > 500;
+                  const hasSpike = llmSpike || sttSpike || ttsSpike;
+                  return (
+                    <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: hasSpike ? '#fff7ed' : (i % 2 === 0 ? '#ffffff' : '#fafafa') }}>
+                      <td style={{ padding: '10px 12px', fontWeight: '600', color: '#3b82f6' }}>
+                          <a href={`#turn-${t.turn_index}`} style={{ textDecoration: 'none', color: 'inherit' }} title="Jump to transcript">#{t.turn_index}</a>
+                        </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: sttSpike ? '#ef4444' : '#374151', fontWeight: sttSpike ? '700' : '400' }}>
+                        {t.stt_ms ?? 'N/A'}{sttSpike ? ' ⚠️' : ''}
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: llmSpike ? '#ef4444' : '#374151', fontWeight: llmSpike ? '700' : '400' }}>
+                        {t.llm_ttft_ms ?? 'N/A'}{llmSpike ? ' ⚠️' : ''}
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: ttsSpike ? '#ef4444' : '#374151', fontWeight: ttsSpike ? '700' : '400' }}>
+                        {t.tts_ttfb_ms ?? 'N/A'}{ttsSpike ? ' ⚠️' : ''}
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#374151' }}>
+                        {(t.prompt_tokens || 0) + (t.completion_tokens || 0) || 'N/A'}
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                        {hasSpike
+                          ? <span style={{ background: '#fef2f2', color: '#dc2626', padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: '600' }}>SPIKE</span>
+                          : <span style={{ background: '#f0fdf4', color: '#16a34a', padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: '600' }}>OK</span>
+                        }
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TOOL CALL TIMELINE */}
+      {auditData?.tool_call_timeline?.length > 0 && (
+        <div className={styles.card}>
+          <h2 className={styles.title}>Tool Call Timeline</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
+            {auditData.tool_call_timeline.map((tc, i) => (
+              <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', padding: '12px 16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div style={{ background: '#3b82f6', color: 'white', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700', flexShrink: 0 }}>
+                  {i + 1}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                    <span style={{ fontWeight: '700', color: '#1e293b', fontFamily: 'monospace', fontSize: '13px' }}>{tc.tool_name}()</span>
+                    <a href={`#turn-${tc.turn_index}`} style={{ fontSize: '11px', color: '#3b82f6', textDecoration: 'none', padding: '2px 6px', background: '#e0f2fe', borderRadius: '4px' }} title="Jump to transcript">Turn #{tc.turn_index}</a>
+                  </div>
+                  {tc.arguments && Object.keys(tc.arguments).length > 0 && (
+                    <div style={{ fontSize: '12px', color: '#475569', fontFamily: 'monospace', background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', marginBottom: '4px' }}>
+                      {JSON.stringify(tc.arguments).slice(0, 150)}
+                    </div>
+                  )}
+                  {tc.result && (
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>{"->"} {tc.result.slice(0, 120)}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className={styles.card}>
+        <style dangerouslySetInnerHTML={{__html: `
+          .target-highlight:target {
+            animation: target-pulse 2s cubic-bezier(0.4, 0, 0.2, 1);
+            outline: 3px solid #f59e0b;
+            outline-offset: 2px;
+          }
+          @keyframes target-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
+            70% { box-shadow: 0 0 0 15px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+          }
+        `}} />
         <h2 className={styles.title}>Transcript</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '20px' }}>
-          {transcript.map((msg, i) => (
-            <div key={i} style={{ 
+          {transcript.map((msg, i) => {
+            const turnId = transcript.slice(0, i).filter(m => m.role === 'user').length + 1;
+            const isFirstInTurn = i === 0 || transcript[i-1].role === 'user';
+            return (
+            <div key={i} id={isFirstInTurn ? `turn-${turnId}` : undefined} className={isFirstInTurn ? "target-highlight" : ""} style={{ scrollMarginTop: '80px', transition: 'all 0.3s ease',
               alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
               background: msg.role === 'user' ? '#3b82f6' : '#f1f5f9',
               color: msg.role === 'user' ? 'white' : '#1e293b',
@@ -259,7 +358,8 @@ export default function SessionReport({ params }) {
               </div>
               <div style={{ lineHeight: '1.5' }}>{msg.text || safeRender(msg)}</div>
             </div>
-          ))}
+          );
+          })}
           {transcript.length === 0 && (
             <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px' }}>
               No transcript available for this session.

@@ -115,7 +115,7 @@ export default function CandidateInterviewPage({ params }) {
         reportJson: JSON.stringify({ metrics })
       }).eq('id', currentSession.id);
       
-      console.log('Triggering Audit Agent Evaluator...'); try { await fetch('/api/audit/evaluate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: currentSession.id, sessionType: linkData?.interviewPlan?.mode || 'guided', telemetryDump: metrics, transcript: transcript }) }); } catch (e) { console.error('Failed to trigger audit evaluator:', e); } console.log('Session updated in DB. Redirecting...');
+      console.log('Session updated in DB. Metrics will be pushed by Python agent. Redirecting...');
       // Redirect to completed page
       router.push(`/interview/${id}/completed`);
     } catch(err) {
